@@ -6,6 +6,7 @@ from sqlalchemy.orm import sessionmaker
 import time
 import yaml
 import importlib
+from time import sleep
 
 # Load configuration from config.yml
 with open("config.yml", "r") as f:
@@ -174,4 +175,9 @@ def handle_del_pair(message):
     bot.register_next_step_handler(message, delete_pair)
 
 # Start the bot
-bot.polling()
+while True:
+    try:
+        bot.polling(none_stop=True)
+    except Exception as _ex:
+        print(_ex)
+        sleep(15)
