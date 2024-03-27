@@ -9,6 +9,9 @@ add_pair_success = "Pair added successfully!"
 delete_pair_request = "Send me the sticker you want to delete."
 delete_pair_success = "Pair deleted successfully!"
 delete_pair_unauthorized = "You are not authorized to delete this pair."
+delete_pair_404 = "Pair with this sticker not found"
 
 video_unavailable = "The video associated with this sticker is no longer available. The pair has been deleted."
 sticker_already_paired = "A pair with this sticker already exists."
+
+invalid_input_sticker_required = "Wrong answer. Aborting...."

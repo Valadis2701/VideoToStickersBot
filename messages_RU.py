@@ -11,6 +11,9 @@ add_pair_success = "Пара добавлена успешно!"
 delete_pair_request = "Отправьте мне стикер, который вы хотите удалить."
 delete_pair_success = "Пара удалена успешно!"
 delete_pair_unauthorized = "Вы не можете удалить эту пару."
+delete_pair_404 = "Пара с этим стикером не найдена"
 
 video_unavailable = "Видео, связанное с этим стикером, больше не доступно. Пара удалена."
 sticker_already_paired = "Пара с этим стикером уже существует."
+
+invalid_input_sticker_required = "Не правильно. Отмена..."

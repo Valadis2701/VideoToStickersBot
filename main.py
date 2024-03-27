@@ -26,7 +26,6 @@ Base = declarative_base()
 
 class Pair(Base):
     __tablename__ = "pairs"
-
     id = Column(Integer, primary_key=True)
     sticker_id = Column(String, unique=True)
     video_file_id = Column(String)  # Store video file ID instead of path
@@ -37,7 +36,7 @@ Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Function to add a sticker-video pair (modified to check for existing sticker)
+# Function to add a sticker-video pair (modified to check for existing sticker and validate input)
 def add_pair(message):
     chat_id = message.chat.id
 
@@ -47,6 +46,10 @@ def add_pair(message):
 
 def add_pair_check_sticker(message):
     chat_id = message.chat.id
+    if not message.sticker:  # Check if it's actually a sticker
+        bot.send_message(chat_id, messages.invalid_input_sticker_required)
+        return  # Exit the function if not a sticker
+
     sticker = message.sticker
 
     # Check if a pair with this sticker already exists
@@ -61,6 +64,9 @@ def add_pair_check_sticker(message):
 
 def add_pair_get_video(message, sticker):
     chat_id = message.chat.id
+    if not message.video:  # Check if it's actually a video
+        bot.send_message(chat_id, messages.invalid_input_sticker_required)
+        return  # Exit the function if not a video
 
     # Get video file ID
     video_file_id = message.video.file_id
@@ -72,9 +78,13 @@ def add_pair_get_video(message, sticker):
 
     bot.send_message(chat_id, messages.add_pair_success)
 
-# Function to delete a sticker-video pair (modified to allow admins)
+# Function to delete a sticker-video pair (modified to allow admins and validate input)
 def delete_pair(message):
     chat_id = message.chat.id
+    if not message.sticker:  # Check if it's actually a sticker
+        bot.send_message(chat_id, messages.invalid_input_sticker_required)
+        return  # Exit the function if not a sticker
+
     sticker = message.sticker
     user_id = message.from_user.id  # Get user ID of the requester
 
@@ -85,44 +95,51 @@ def delete_pair(message):
         session.commit()
         bot.send_message(chat_id, messages.delete_pair_success)
     else:
-        bot.send_message(chat_id, messages.delete_pair_unauthorized)
+        # Handle non-existent pair
+        bot.send_message(chat_id, messages.delete_pair_404)  # Send "pair not found" message
 
-# Function to handle incoming stickers in group chats (modified to check reply and use reply_to_message_id)
+# Function to handle incoming stickers in group chats (with exception handling and input validation)
 @bot.message_handler(func=lambda message: message.chat.type != "private", content_types=["sticker"])
 def handle_sticker(message):
+    if not message.sticker:  # Check if it's actually a sticker
+        bot.send_message(message.chat.id, messages.invalid_input_sticker_required)
+        return  # Exit the function if not a sticker
+
     sticker = message.sticker
     username = message.from_user.username  # Get username of the sender
 
-    # Check if pair exists in database
-    pair = session.query(Pair).filter_by(sticker_id=sticker.file_unique_id).first()
+    try:
+        # Check if pair exists in database
+        pair = session.query(Pair).filter_by(sticker_id=sticker.file_unique_id).first()
+        if pair:
+            video_file_id = pair.video_file_id  # Get video file ID
 
-    if pair:
-        video_file_id = pair.video_file_id  # Get video file ID
-
-        # Check if the video still exists
-        try:
+            # Check if the video still exists
             bot.get_file(video_file_id)  # This will raise an error if the file doesn't exist
-        except telebot.apihelper.ApiException:
-            # Video doesn't exist, delete the pair from the database
+
+            # Check if the sticker is a reply to a message
+            reply_to_message_id = message.reply_to_message.message_id if message.reply_to_message else None
+            if reply_to_message_id:
+                # Reply to the original message with the video
+                caption = f"Ответ {username}:\n"
+                bot.send_video(message.chat.id, video_file_id, caption=caption, reply_to_message_id=reply_to_message_id)
+            else:
+                # Send the video as a regular message
+                caption = f"Ответ {username}:\n"
+                bot.send_video(message.chat.id, video_file_id, caption=caption)
+
+            # Delete the sticker message
+            bot.delete_message(message.chat.id, message.message_id)
+
+    except telebot.apihelper.ApiException as e:
+        # Handle video retrieval error
+        print(f"Error retrieving video file: {e}")
+        bot.send_message(message.chat.id, messages.video_unavailable)
+
+        # Delete the pair from the database if the video is gone
+        if pair:
             session.delete(pair)
             session.commit()
-            bot.send_message(message.chat.id, messages.video_unavailable)
-            return  # Exit the function
-
-        # Check if the sticker is a reply to a message
-        reply_to_message_id = message.reply_to_message.message_id if message.reply_to_message else None
-
-        if reply_to_message_id:
-            # Reply to the original message with the video
-            caption = f"Ответ {username}:\n"
-            bot.send_video(message.chat.id, video_file_id, caption=caption, reply_to_message_id=reply_to_message_id)
-        else:
-            # Send the video as a regular message
-            caption = f"Ответ {username}:\n"
-            bot.send_video(message.chat.id, video_file_id, caption=caption)
-
-        # Delete the sticker message
-        bot.delete_message(message.chat.id, message.message_id)
 
 # Command handlers (modified to check for private chat)
 @bot.message_handler(commands=["start", "addpair", "delpair"])
